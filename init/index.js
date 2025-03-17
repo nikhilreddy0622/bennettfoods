@@ -12,12 +12,12 @@ require('dotenv').config();
 
 // Use local MongoDB URLs since ATLAS_DB is not configured
 const MONGO_URLS = {
-    kathi: "mongodb://127.0.0.1:27017/kathi",
-    quench: "mongodb://127.0.0.1:27017/quench",
-    southern: "mongodb://127.0.0.1:27017/southern",
-    hotspot: "mongodb://127.0.0.1:27017/hotspot",
-    user: "mongodb://127.0.0.1:27017/user",
-    orders: "mongodb://127.0.0.1:27017/order"
+    kathi: process.env.ATLASDB_URL,
+    quench: process.env.ATLASDB_URL,
+    southern: process.env.ATLASDB_URL,
+    hotspot: process.env.ATLASDB_URL,
+    user: process.env.ATLASDB_URL,
+    orders: process.env.ATLASDB_URL
 };
 
 let connections = {};
