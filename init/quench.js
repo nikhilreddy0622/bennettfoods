@@ -5,7 +5,7 @@ const sampleFoodItems = [
         image: {
             url: "https://images.healthshots.com/healthshots/en/uploads/2023/04/15092339/lemon-juice-1600x900.jpg"
         },
-        price: 3.00
+        price: 60
     },
     {
         name: "Mango Smoothie",
@@ -13,7 +13,7 @@ const sampleFoodItems = [
         image: {
             url: "https://www.indianhealthyrecipes.com/wp-content/uploads/2021/04/mango-milkshake-recipe.jpg"
         },
-        price: 4.50
+        price: 90
     },
     {
         name: "Iced Coffee",
@@ -21,7 +21,7 @@ const sampleFoodItems = [
         image: {
             url: "https://frostingandfettuccine.com/wp-content/uploads/2022/12/Caramel-Iced-Coffee-6.jpg"
         },
-        price: 3.50
+        price: 70
     },
     {
         name: "Berry Iced Tea",
@@ -29,7 +29,7 @@ const sampleFoodItems = [
         image: {
             url: "https://waystomyheart.com/wp-content/uploads/2019/05/ways-to-my-heart-iced-tea.jpg"
         },
-        price: 3.25
+        price: 65
     },
     {
         name: "Fruit Punch",
@@ -37,7 +37,7 @@ const sampleFoodItems = [
         image: {
             url: "https://heatherchristo.com/wp-content/uploads/2019/05/47755684632_9b1a926524_o.jpg"
         },
-        price: 4.00
+        price: 80
     },
     {
         name: "Chocolate Milkshake",
@@ -45,9 +45,8 @@ const sampleFoodItems = [
         image: {
             url: "https://www.sharmispassions.com/wp-content/uploads/2012/07/chocolate-milkshake1.jpg"
         },
-        price: 5.00
-    },
-   
+        price: 100
+    }
 ];
 
 module.exports = { data: sampleFoodItems };

@@ -173,7 +173,7 @@
                         <img src="<%= item.image.url %>" alt="<%= item.name %>">
                         <h3><%= item.name %></h3>
                         <p><%= item.description %></p>
-                        <p class="price">$<%= item.price.toFixed(2) %></p>
+                        <p class="price">₹<%= item.price.toFixed(2) %></p>
                         
                         <div class="item-actions">
                             <button class="btn btn-primary" onclick="openEditDialog('<%= item._id %>')">Edit</button>
@@ -232,7 +232,7 @@
                 const name = itemElement.querySelector('h3').textContent;
                 const description = itemElement.querySelector('p:not(.price)').textContent;
                 const imageUrl = itemElement.querySelector('img').src;
-                const price = itemElement.querySelector('.price').textContent.replace('$', '');
+                const price = itemElement.querySelector('.price').textContent.replace('₹', '');
 
                 document.getElementById('edit-name').value = name;
                 document.getElementById('edit-description').value = description;

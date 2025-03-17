@@ -6,7 +6,7 @@
     <title>Southern - Flavor Fiesta</title>
     <link rel="stylesheet" href="/home.css">
     <link rel="stylesheet" href="/cards.css">
-    <script src="https://kit.fontawesome.com/your-fontawesome-kit.js" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
 <body>
     <header>
@@ -30,14 +30,14 @@
                             <h3><%= item.name %></h3>
                             <p><%= item.description %></p>
                             <div class="price-quantity">
-                                <span class="price">$<%= item.price.toFixed(2) %></span>
+                                <span class="price">₹<%= (item.price).toFixed(2) %></span>
                                 <div class="quantity-control">
                                     <button class="quantity-btn minus" data-id="<%= item._id %>">
-                                        <i class="fas fa-minus"></i>
+                                        -
                                     </button>
                                     <span class="quantity" data-id="<%= item._id %>">0</span>
                                     <button class="quantity-btn plus" data-id="<%= item._id %>">
-                                        <i class="fas fa-plus"></i>
+                                        +
                                     </button>
                                 </div>
                             </div>
@@ -54,7 +54,7 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const shopName = 'Southern';
+            const shopName = 'southern';
             let cart = {};
 
             async function fetchCart() {
@@ -64,80 +64,135 @@
                         throw new Error('Failed to fetch cart');
                     }
                     const data = await response.json();
-                    cart = data.cart.southernCartItems.reduce((acc, item) => {
-                        acc[item.itemId] = item;
-                        return acc;
-                    }, {});
-                    updateAllQuantityDisplays();
+                    cart = {};  // Reset cart before updating
+                    if (data.cart && data.cart.southernCartItems) {
+                        data.cart.southernCartItems.forEach(item => {
+                            cart[item.itemId] = item;
+                            updateQuantityDisplay(item.itemId);
+                        });
+                    }
                     updateCartCount();
                 } catch (error) {
                     console.error('Error fetching cart:', error);
                 }
             }
 
-            function updateAllQuantityDisplays() {
-                Object.keys(cart).forEach(itemId => {
-                    updateQuantityDisplay(itemId);
-                });
-            }
-
             function updateQuantityDisplay(itemId) {
                 const quantityElement = document.querySelector(`.quantity[data-id="${itemId}"]`);
                 if (quantityElement) {
-                    quantityElement.textContent = cart[itemId] ? cart[itemId].quantity : 0;
+                    quantityElement.textContent = cart[itemId] ? cart[itemId].quantity : '0';
                 }
             }
 
             function updateCartCount() {
-                const cartCount = Object.values(cart).reduce((total, item) => total + item.quantity, 0);
-                document.querySelector('.cart-count').textContent = cartCount;
+                const cartCount = Object.values(cart).reduce((total, item) => total + (item.quantity || 0), 0);
+                const cartCountElement = document.querySelector('.cart-count');
+                if (cartCountElement) {
+                    cartCountElement.textContent = cartCount;
+                }
             }
 
             async function updateCart(itemId, change) {
-                const itemElement = document.querySelector(`.quantity-btn[data-id="${itemId}"]`).closest('.food-card');
-                
-                if (!cart[itemId]) {
-                    cart[itemId] = {
+                try {
+                    const itemElement = document.querySelector(`.quantity-btn[data-id="${itemId}"]`).closest('.food-card');
+                    if (!itemElement) {
+                        throw new Error('Item element not found');
+                    }
+
+                    const newQuantity = (cart[itemId]?.quantity || 0) + change;
+                    
+                    if (newQuantity <= 0) {
+                        delete cart[itemId];
+                    } else {
+                        if (!cart[itemId]) {
+                            cart[itemId] = {
+                                itemId: itemId,
+                                itemName: itemElement.querySelector('h3').textContent,
+                                price: parseFloat(itemElement.querySelector('.price').textContent.replace('₹', '')),
+                                image: itemElement.querySelector('img').src,
+                                quantity: 0
+                            };
+                        }
+                        cart[itemId].quantity = newQuantity;
+                    }
+
+                    const cartData = {
+                        shopName: shopName,
                         itemId: itemId,
                         itemName: itemElement.querySelector('h3').textContent,
-                        price: parseFloat(itemElement.querySelector('.price').textContent.replace('$', '')),
-                        image: itemElement.querySelector('img').src,
-                        quantity: 0
+                        quantity: newQuantity,
+                        price: parseFloat(itemElement.querySelector('.price').textContent.replace('₹', '')),
+                        image: itemElement.querySelector('img').src
                     };
-                }
 
-                cart[itemId].quantity += change;
-                if (cart[itemId].quantity <= 0) {
-                    delete cart[itemId];
-                }
-
-                try {
                     const response = await fetch('/api/update-cart', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                         },
-                        body: JSON.stringify({
-                            shopName: shopName,
-                            ...cart[itemId]
-                        }),
+                        body: JSON.stringify(cartData)
                     });
 
-                    if (!response.ok) {
-                        throw new Error('Failed to update cart on server');
+                    let responseData;
+                    try {
+                        responseData = await response.json();
+                    } catch (e) {
+                        throw new Error('Invalid response from server');
                     }
 
-                    const result = await response.json();
-                    console.log('Cart updated on server:', result);
+                    if (!response.ok) {
+                        throw new Error(responseData.error || 'Failed to update cart on server');
+                    }
+
+                    console.log('Cart updated on server:', responseData);
+
+                    // Update the local cart with the server response
+                    if (responseData.cart) {
+                        const updatedItem = responseData.cart.find(item => item.itemId === itemId);
+                        if (updatedItem) {
+                            cart[itemId] = updatedItem;
+                        } else if (newQuantity <= 0) {
+                            delete cart[itemId];
+                        }
+                    }
 
                     updateQuantityDisplay(itemId);
                     updateCartCount();
                 } catch (error) {
                     console.error('Error updating cart:', error);
-                    alert('Failed to update cart. Please try again.');
+                    const itemElement = document.querySelector(`.quantity-btn[data-id="${itemId}"]`).closest('.food-card');
+                    if (itemElement) {
+                        const errorDiv = document.createElement('div');
+                        errorDiv.className = 'error-message';
+                        errorDiv.textContent = error.message || 'Failed to update cart. Please try again.';
+                        errorDiv.style.color = 'red';
+                        errorDiv.style.fontSize = '0.8rem';
+                        errorDiv.style.marginTop = '0.5rem';
+                        
+                        const existingError = itemElement.querySelector('.error-message');
+                        if (existingError) {
+                            existingError.remove();
+                        }
+                        
+                        itemElement.querySelector('.food-info').appendChild(errorDiv);
+                        
+                        setTimeout(() => {
+                            const currentError = itemElement.querySelector('.error-message');
+                            if (currentError) {
+                                currentError.remove();
+                            }
+                        }, 3000);
+                    }
+
+                    // Revert the local cart state
+                    if (cart[itemId]) {
+                        updateQuantityDisplay(itemId);
+                        updateCartCount();
+                    }
                 }
             }
 
+            // Add click event listeners to all quantity buttons
             document.querySelectorAll('.quantity-btn').forEach(button => {
                 button.addEventListener('click', function() {
                     const itemId = this.dataset.id;

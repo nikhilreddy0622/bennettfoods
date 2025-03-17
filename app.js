@@ -18,7 +18,7 @@ const app = express();
 const port = process.env.PORT || 8080;
 
 const store = MongoStore.create({
-    mongoUrl: process.env.ATLASDB_URL,
+    mongoUrl: "mongodb://127.0.0.1:27017/user",
     crypto: {
         secret: "mysupersecretcode"
     },
@@ -29,26 +29,26 @@ store.on("error", ()=>{
     console.log("Error in Mongo session Store", error);
 });
 
-const sessionOptions={
+const sessionOptions = {
     store,
-    secret:"mysupersecretcode",
-    resave:false,
-    saveUninitialized:true,
-    cookie:{
-        expires:Date.now()+7*24*60*60*1000,
-        maxAge:7*24*60*60*1000,
-        httpOnly:true,
-
+    secret: process.env.SESSION_SECRET || "mysupersecretcode",
+    resave: false,
+    saveUninitialized: true,
+    cookie: {
+        expires: Date.now() + 7 * 24 * 60 * 60 * 1000,
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production'
     },
 };
 
 const MONGO_URLS = {
-    kathi: `${process.env.ATLASDB_URL}/kathi`,
-    quench: `${process.env.ATLASDB_URL}/quench`,
-    southern: `${process.env.ATLASDB_URL}/southern`,
-    hotspot: `${process.env.ATLASDB_URL}/hotspot`,
-    user: `${process.env.ATLASDB_URL}/user`,
-    orders: `${process.env.ATLASDB_URL}/order`
+    kathi: "mongodb://127.0.0.1:27017/kathi",
+    quench: "mongodb://127.0.0.1:27017/quench",
+    southern: "mongodb://127.0.0.1:27017/southern",
+    hotspot: "mongodb://127.0.0.1:27017/hotspot",
+    user: "mongodb://127.0.0.1:27017/user",
+    orders: "mongodb://127.0.0.1:27017/order"
 };
 
 let connections = {};
@@ -78,13 +78,6 @@ app.set("views", path.join(__dirname, "views"));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "/public")));
 app.use(express.json());
-
-app.use(session({
-    secret: process.env.SESSION_SECRET,
-    resave: false,
-    saveUninitialized: true,
-    cookie: { secure: false }
-}));
 
 const isAuthenticated = (req, res, next) => {
     if (req.session && req.session.userId) {
@@ -127,7 +120,7 @@ app.post("/create-order", async (req, res) => {
         const options = {
             amount: amount,
             currency: 'INR',
-            receipt: 'sathvikkomuravelly@gmail.com'
+            receipt: 'bennettfoods7@gmail.com'
         };
 
         razorpayInstance.orders.create(options, (err, order) => {
@@ -142,7 +135,7 @@ app.post("/create-order", async (req, res) => {
                     description: req.body.description,
                     contact: "8688460479",
                     name: "Bennett Foods",
-                    email: "sathvikkomuravelly@gmail.com"
+                    email: "bennettfoods7@gmail.com"
                 });
             } else {
                 res.status(400).send({success: false, msg: 'Something went wrong!'});
@@ -157,14 +150,91 @@ app.post("/create-order", async (req, res) => {
 
 // Email transporter setup
 let transporter = nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 587,
-    secure: false,
+    service: 'gmail',
     auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
+        user: process.env.EMAIL_USER || 'bennettfoods7@gmail.com',
+        pass: process.env.EMAIL_PASS || 'ldgkrmjdktcukpny'
     },
+    debug: true // Enable debug logging
 });
+
+// Update the from email address in all email sending operations
+const FROM_EMAIL = process.env.EMAIL_USER || 'bennettfoods7@gmail.com';
+
+// Helper function to send emails with better error handling
+async function sendEmail(options) {
+    if (!options.to || !options.subject || !options.text) {
+        console.error('Missing required email fields:', options);
+        return { success: false, error: 'Missing required email fields' };
+    }
+
+    try {
+        console.log('Attempting to send email with options:', {
+            to: options.to,
+            subject: options.subject,
+            from: FROM_EMAIL
+        });
+        
+        // Verify connection configuration
+        await transporter.verify();
+        
+        // Add from email if not provided
+        if (!options.from) {
+            options.from = FROM_EMAIL;
+        }
+
+        const info = await transporter.sendMail(options);
+        console.log('Email sent successfully. Message ID:', info.messageId);
+        return { success: true, info };
+    } catch (error) {
+        console.error('Error sending email:', {
+            error: error.message,
+            stack: error.stack,
+            code: error.code,
+            command: error.command
+        });
+        return { success: false, error };
+    }
+}
+
+// Test the email configuration on startup
+transporter.verify()
+    .then(() => {
+        console.log('Email server is ready to send messages');
+    })
+    .catch((error) => {
+        console.error('Email configuration error:', {
+            message: error.message,
+            code: error.code,
+            command: error.command
+        });
+    });
+
+// Example test email function - only run if TEST_EMAIL environment variable is set
+if (process.env.TEST_EMAIL === 'true') {
+    async function sendTestEmail() {
+        try {
+            const testMailOptions = {
+                from: FROM_EMAIL,
+                to: FROM_EMAIL,
+                subject: 'Test Email',
+                text: 'This is a test email to verify the email configuration is working.'
+            };
+            
+            const result = await sendEmail(testMailOptions);
+            if (result.success) {
+                console.log('Test email sent successfully');
+            } else {
+                console.error('Failed to send test email:', result.error);
+            }
+        } catch (error) {
+            console.error('Error in test email function:', error);
+        }
+    }
+    
+    // Send a test email
+    sendTestEmail();
+}
 
 const adminCredentials = {
     kathi: { username: process.env.ADMIN_KATHI_USERNAME, password: process.env.ADMIN_KATHI_PASSWORD },
@@ -247,20 +317,43 @@ app.get('/api/get-cart', isAuthenticated, async (req, res) => {
 app.post('/api/update-cart', isAuthenticated, async (req, res) => {
     try {
         const { shopName, itemId, itemName, quantity, price, image } = req.body;
-        const userId = req.session.userId;
 
+        // Validate required fields
+        if (!shopName || !itemId || !itemName || quantity === undefined || !price || !image) {
+            return res.status(400).json({ 
+                error: 'Missing required fields',
+                received: { shopName, itemId, itemName, quantity, price, image }
+            });
+        }
+
+        // Validate shop name
+        const validShops = ['kathi', 'southern', 'quench', 'hotspot'];
+        if (!validShops.includes(shopName.toLowerCase())) {
+            return res.status(400).json({ error: 'Invalid shop name' });
+        }
+
+        const userId = req.session.userId;
         const UserModel = connections.user.model("User");
         const user = await UserModel.findById(userId);
+        
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }
 
         const cartField = `${shopName.toLowerCase()}CartItems`;
+        
+        // Validate that the cart field exists
+        if (!user[cartField]) {
+            return res.status(400).json({ error: 'Invalid cart field' });
+        }
+
         const itemIndex = user[cartField].findIndex(item => item.itemId === itemId);
 
         if (itemIndex > -1) {
             if (quantity > 0) {
                 user[cartField][itemIndex].quantity = quantity;
+                user[cartField][itemIndex].price = price; // Update price in case it changed
+                user[cartField][itemIndex].image = image; // Update image in case it changed
             } else {
                 user[cartField].splice(itemIndex, 1);
             }
@@ -269,10 +362,19 @@ app.post('/api/update-cart', isAuthenticated, async (req, res) => {
         }
 
         await user.save();
-        res.json({ message: 'Cart updated successfully', cart: user[cartField] });
+        
+        // Return the updated cart items for the specific shop
+        res.json({ 
+            message: 'Cart updated successfully', 
+            cart: user[cartField],
+            cartCount: user[cartField].reduce((total, item) => total + item.quantity, 0)
+        });
     } catch (error) {
         console.error('Error updating cart:', error);
-        res.status(500).json({ error: 'Internal server error' });
+        res.status(500).json({ 
+            error: 'Internal server error',
+            details: error.message 
+        });
     }
 });
 
@@ -289,8 +391,12 @@ app.post("/signup", async (req, res) => {
         const { username, password, gmail } = req.body;
         const UserModel = connections.user.model("User");
 
+        // Log the signup attempt
+        console.log('Signup attempt:', { username, gmail });
+
         const existingUser = await UserModel.findOne({ $or: [{ username }, { gmail }] });
         if (existingUser) {
+            console.log('User already exists:', { username, gmail });
             return res.render("signup", { errors: ["Username or email already exists"] });
         }
 
@@ -298,6 +404,7 @@ app.post("/signup", async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, saltRounds);
 
         const otp = generateOtp();
+        console.log('Generated OTP:', otp); // For debugging
 
         const newUser = new UserModel({
             username,
@@ -308,28 +415,36 @@ app.post("/signup", async (req, res) => {
 
         await newUser.save();
 
+        // Send verification email
         const mailOptions = {
-            from: 'komuravellysathvik@gmail.com',
+            from: FROM_EMAIL,
             to: gmail,
-            subject: 'Email Verification',
-            text: `Your verification code is:${otp}`
+            subject: 'Verify Your Email - Bennett Foods',
+            text: `Welcome to Bennett Foods!\n\nYour verification code is: ${otp}\n\nThis code will expire in 10 minutes.`
         };
 
-        transporter.sendMail(mailOptions, (error, info) => {
-            if (error) {
-                console.log(error);
-                return res.render("signup", { errors: ["Error sending verification email"] });
-            }
-            console.log('Email sent: ' + info.response);
-            res.render("verify", { email: gmail });
-        });
+        const emailResult = await sendEmail(mailOptions);
+        
+        if (emailResult.success) {
+            console.log('Verification email sent successfully to:', gmail);
+            res.render("verify", { email: gmail, error: null });
+        } else {
+            console.error('Failed to send verification email:', emailResult.error);
+            // Delete the user if email sending fails
+            await UserModel.deleteOne({ username });
+            res.render("signup", { 
+                errors: ["Failed to send verification email. Please try again or contact support."] 
+            });
+        }
     } catch (error) {
+        console.error("Signup error:", error);
         if (error instanceof mongoose.Error.ValidationError) {
             const errorMessages = Object.values(error.errors).map(err => err.message);
             res.status(400).render("signup", { errors: errorMessages });
         } else {
-            console.error("Signup error:", error);
-            res.status(500).render("signup", { errors: ["An unexpected error occurred. Please try again."] });
+            res.status(500).render("signup", { 
+                errors: ["An unexpected error occurred. Please try again."] 
+            });
         }
     }
 });
@@ -339,19 +454,95 @@ app.post("/verify", async (req, res) => {
     const UserModel = connections.user.model("User");
 
     try {
-        const user = await UserModel.findOne({ gmail: email, otp: otp });
-        if (user) {
-            user.isVerified = true;
-            user.otp = undefined;
-            await user.save();
-            req.session.userId = user._id;
-            res.redirect("/home");
-        } else {
-            res.render("verify", { email, error: "Invalid OTP" });
+        console.log('Verifying OTP:', { email, otp });
+        const user = await UserModel.findOne({ 
+            gmail: email,
+            otp: otp,
+            isVerified: false
+        });
+
+        if (!user) {
+            console.log('Invalid OTP or email:', { email, otp });
+            return res.render("verify", { email, error: "Invalid OTP" });
         }
+
+        // Check if OTP is expired (10 minutes)
+        const otpCreationTime = user._id.getTimestamp();
+        const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+        
+        if (otpCreationTime < tenMinutesAgo) {
+            console.log('OTP expired for:', email);
+            return res.render("verify", { email, error: "OTP has expired. Please request a new one." });
+        }
+
+        // Mark user as verified and remove OTP
+        user.isVerified = true;
+        user.otp = undefined;
+        await user.save();
+
+        // Log the user in
+        req.session.userId = user._id;
+        console.log('User verified successfully:', email);
+        
+        res.redirect("/home");
     } catch (error) {
         console.error("Verification error:", error);
-        res.status(500).render("verify", { email, error: "An unexpected error occurred. Please try again." });
+        res.status(500).render("verify", { 
+            email, 
+            error: "An unexpected error occurred. Please try again." 
+        });
+    }
+});
+
+// Add resend OTP route
+app.get("/resend-otp", async (req, res) => {
+    const { email } = req.query;
+    if (!email) {
+        return res.redirect("/signup");
+    }
+
+    try {
+        const UserModel = connections.user.model("User");
+        const user = await UserModel.findOne({ gmail: email, isVerified: false });
+
+        if (!user) {
+            return res.redirect("/signup");
+        }
+
+        // Generate new OTP
+        const newOtp = generateOtp();
+        user.otp = newOtp;
+        await user.save();
+
+        // Send new verification email
+        const mailOptions = {
+            from: FROM_EMAIL,
+            to: email,
+            subject: 'New Verification Code - Bennett Foods',
+            text: `Your new verification code is: ${newOtp}\n\nThis code will expire in 10 minutes.`
+        };
+
+        const emailResult = await sendEmail(mailOptions);
+        
+        if (emailResult.success) {
+            console.log('New verification email sent successfully to:', email);
+            res.render("verify", { 
+                email, 
+                error: "New verification code has been sent to your email." 
+            });
+        } else {
+            console.error('Failed to send new verification email:', emailResult.error);
+            res.render("verify", { 
+                email, 
+                error: "Failed to send new verification code. Please try again." 
+            });
+        }
+    } catch (error) {
+        console.error("Resend OTP error:", error);
+        res.status(500).render("verify", { 
+            email, 
+            error: "An unexpected error occurred. Please try again." 
+        });
     }
 });
 
@@ -365,34 +556,42 @@ app.post("/forgot-password", async (req, res) => {
     const UserModel = connections.user.model("User");
 
     try {
+        console.log('Password reset requested for:', gmail);
         const user = await UserModel.findOne({ gmail });
         if (!user) {
+            console.log('Email not found:', gmail);
             return res.render("forgot-password", { error: "Email not found" });
         }
 
         const otp = generateOtp();
+        console.log('Generated reset OTP for:', gmail);
+
         user.resetPasswordOtp = otp;
         user.resetPasswordExpires = Date.now() + 600000; // OTP expires in 10 minutes
         await user.save();
 
         const mailOptions = {
-            from: 'komuravellysathvik@gmail.com',
+            from: FROM_EMAIL,
             to: gmail,
-            subject: 'Password Reset',
-            text: `Your password reset code is: ${otp}`
+            subject: 'Password Reset - Bennett Foods',
+            text: `You requested to reset your password.\n\nYour password reset code is: ${otp}\n\nThis code will expire in 10 minutes.\n\nIf you did not request this, please ignore this email.`
         };
 
-        transporter.sendMail(mailOptions, (error, info) => {
-            if (error) {
-                console.log(error);
-                return res.render("forgot-password", { error: "Error sending reset email" });
-            }
-            console.log('Email sent: ' + info.response);
+        const emailResult = await sendEmail(mailOptions);
+        if (emailResult.success) {
+            console.log('Reset email sent successfully to:', gmail);
             res.render("reset-password", { email: gmail, error: null });
-        });
+        } else {
+            console.error("Error sending reset email:", emailResult.error);
+            res.render("forgot-password", { 
+                error: "Failed to send reset email. Please try again or contact support." 
+            });
+        }
     } catch (error) {
         console.error("Forgot password error:", error);
-        res.status(500).render("forgot-password", { error: "An unexpected error occurred. Please try again." });
+        res.status(500).render("forgot-password", { 
+            error: "An unexpected error occurred. Please try again." 
+        });
     }
 });
 
@@ -401,6 +600,7 @@ app.post("/reset-password", async (req, res) => {
     const UserModel = connections.user.model("User");
 
     try {
+        console.log('Attempting password reset for:', email);
         const user = await UserModel.findOne({
             gmail: email,
             resetPasswordOtp: otp,
@@ -408,7 +608,11 @@ app.post("/reset-password", async (req, res) => {
         });
 
         if (!user) {
-            return res.render("reset-password", { email, error: "Invalid or expired OTP" });
+            console.log('Invalid or expired reset OTP for:', email);
+            return res.render("reset-password", { 
+                email, 
+                error: "Invalid or expired reset code" 
+            });
         }
 
         const saltRounds = 10;
@@ -419,10 +623,14 @@ app.post("/reset-password", async (req, res) => {
         user.resetPasswordExpires = undefined;
         await user.save();
 
+        console.log('Password reset successful for:', email);
         res.redirect("/login");
     } catch (error) {
         console.error("Password reset error:", error);
-        res.status(500).render("reset-password", { email, error: "An unexpected error occurred. Please try again." });
+        res.status(500).render("reset-password", { 
+            email, 
+            error: "An unexpected error occurred. Please try again." 
+        });
     }
 });
 
@@ -455,29 +663,73 @@ app.get("/home", async (req, res) => {
 });
 
 app.get("/home/:shop", isAuthenticated, async (req, res) => {
-    const { shop } = req.params;
-    if (!connections[shop]) {
-        return res.status(404).send("Shop not found");
+    try {
+        const { shop } = req.params;
+        
+        // Validate shop name
+        const validShops = ['kathi', 'southern', 'quench', 'hotspot'];
+        if (!validShops.includes(shop)) {
+            return res.status(404).send("Shop not found");
+        }
+
+        if (!connections[shop]) {
+            return res.status(404).send("Shop not found");
+        }
+
+        const Food = connections[shop].model("FoodItem");
+        const food = await Food.find({});
+
+        // Get user for cart count
+        const UserModel = connections.user.model("User");
+        const user = await UserModel.findById(req.session.userId);
+        
+        const cartCount = user ? user[`${shop}CartItems`].reduce((total, item) => total + item.quantity, 0) : 0;
+
+        res.render(shop, { 
+            food,
+            cartCount,
+            isLoggedIn: true,
+            username: user ? user.username : null
+        });
+    } catch (error) {
+        console.error(`Error accessing ${req.params.shop}:`, error);
+        res.status(500).send("An error occurred while accessing the shop");
     }
-    const Food = connections[shop].model("FoodItem");
-    const food = await Food.find({});
-    res.render(shop, { food });
 });
 
 app.get("/:shop-cart", isAuthenticated, async (req, res) => {
-    const { shop } = req.params;
-    const UserModel = connections.user.model("User");
-    const user = await UserModel.findById(req.session.userId);
-    const cartItems = user[`${shop}CartItems`];
-    
-    // Calculate total amount
-    const totalAmount = cartItems.reduce((total, item) => total + (item.price * item.quantity), 0);
-    
-    res.render(`${shop}-cart`, { 
-        cartItems, 
-        totalAmount,
-        razorpayKeyId: "rzp_test_NZXiFCx6PZfgtI"
-    });
+    try {
+        const { shop } = req.params;
+        
+        // Validate shop name
+        const validShops = ['kathi', 'southern', 'quench', 'hotspot'];
+        if (!validShops.includes(shop)) {
+            return res.status(404).send("Shop not found");
+        }
+
+        const UserModel = connections.user.model("User");
+        const user = await UserModel.findById(req.session.userId);
+        
+        if (!user) {
+            // If user is not found, redirect to login
+            return res.redirect('/login');
+        }
+
+        const cartField = `${shop}CartItems`;
+        const cartItems = user[cartField] || [];
+        
+        // Calculate total amount
+        const totalAmount = cartItems.reduce((total, item) => total + (item.price * item.quantity), 0);
+        
+        res.render(`${shop}-cart`, { 
+            cartItems, 
+            totalAmount,
+            razorpayKeyId: process.env.RAZORPAY_KEY_ID || "rzp_test_NZXiFCx6PZfgtI"
+        });
+    } catch (error) {
+        console.error(`Error accessing ${req.params.shop} cart:`, error);
+        res.status(500).send("An error occurred while accessing the cart");
+    }
 });
 
 app.get("/modify/:shop", async (req, res) => {
@@ -602,15 +854,19 @@ app.post("/:shop-dashboard/order-ready/:orderId", async (req, res) => {
 
        
         const mailOptions = {
-            from: 'komuravellysathvik@gmail.com',
+            from: FROM_EMAIL,
             to: user.gmail,
             subject: `Your ${shop.charAt(0).toUpperCase() + shop.slice(1)} order is ready!`,
             text: `Your order (ID: ${orderId}) is ready for pickup. Please come to collect it!`
         };
 
-        await transporter.sendMail(mailOptions);
-
-        res.status(200).send("Notification sent successfully");
+        const emailResult = await sendEmail(mailOptions);
+        if (emailResult.success) {
+            res.status(200).send("Notification sent successfully");
+        } else {
+            console.error("Error sending ready notification:", emailResult.error);
+            res.status(500).send("Error sending notification");
+        }
     } catch (error) {
         console.error("Error sending ready notification:", error);
         res.status(500).send("Error sending notification");
@@ -644,15 +900,19 @@ app.post('/:shop-dashboard/generate-otp/:orderId', async (req, res) => {
         await order.save();
 
         const mailOptions = {
-            from: 'komuravellysathvik@gmail.com',
+            from: FROM_EMAIL,
             to: user.gmail,
             subject: `OTP for your ${shop.charAt(0).toUpperCase() + shop.slice(1)} order pickup`,
             text: `Your OTP for order pickup (ID: ${orderId}) is: ${otp}`
         };
 
-        await transporter.sendMail(mailOptions);
-
-        res.status(200).send("OTP sent successfully");
+        const emailResult = await sendEmail(mailOptions);
+        if (emailResult.success) {
+            res.status(200).send("OTP sent successfully");
+        } else {
+            console.error("Error generating and sending OTP:", emailResult.error);
+            res.status(500).send(`Error generating and sending OTP: ${emailResult.error.message}`);
+        }
     } catch (error) {
         console.error("Error generating and sending OTP:", error);
         res.status(500).send(`Error generating and sending OTP: ${error.message}`);

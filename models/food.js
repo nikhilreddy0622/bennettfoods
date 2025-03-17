@@ -5,7 +5,7 @@ const foodItemSchema = new Schema({
     name: {
         type: String,
         required: true,
-        trim: true // Trims whitespace from the beginning and end
+        trim: true 
     },
     description: {
         type: String,
@@ -14,15 +14,19 @@ const foodItemSchema = new Schema({
     image: {
         url: {
             type: String,
-            set: (v) => v === "" 
-                ? "https://images.unsplash.com/photo-1501785888041-af3ef285b470?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTh8fHRyYXZlbHxlbnwwfHwwfHx8MA%3D%3D&auto=format&fit=crop&w=800&q=60" 
-                : v // Default image URL if empty
+            default: "https://via.placeholder.com/400x300?text=Food+Image",
+            set: function(v) {
+                if (!v || v.trim() === "") {
+                    return "https://via.placeholder.com/400x300?text=Food+Image";
+                }
+                return v;
+            }
         }
     },
     price: {
         type: Number,
         required: true,
-        min: 0 // Ensures the price is non-negative
+        min: 0
     },
    
 });
